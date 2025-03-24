@@ -11,25 +11,16 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 10000;
 
-// Create WebSocket server
-let wss;
-try {
-    wss = new WebSocket.Server({ port: PORT });
-    console.log(`WebSocket server started on port ${PORT}`);
-} catch (error) {
-    console.error(`Failed to start WebSocket server on port ${PORT}:`, error);
-    // Try alternative port
-    try {
-        const altPort = PORT + 1;
-        wss = new WebSocket.Server({ port: altPort });
-        console.log(`WebSocket server started on port ${altPort}`);
-    } catch (error) {
-        console.error('Failed to start WebSocket server on alternative port:', error);
-        process.exit(1);
-    }
-}
+// Create HTTP server
+const server = app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+});
+
+// Create WebSocket server attached to the HTTP server
+const wss = new WebSocket.Server({ server });
+console.log('WebSocket server is running on the same port');
 
 // Store connected ESP32 clients
 let esp32Clients = new Set();
