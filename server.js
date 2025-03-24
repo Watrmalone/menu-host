@@ -242,74 +242,55 @@ app.get('/api/test-menu', async (req, res) => {
         console.error('Test Error:', error);
         res.status(500).json({
             success: false,
-            error: error.message,
-            menuLoaded: !!menuData
+            error: error.message
         });
     }
 });
-
-// Simplified test connection
-async function testApiConnection() {
-    try {
-        const result = await model.generateContent("test");
-        await result.response;
-        console.log('Gemini 2.0 Flash-Lite Connected');
-    } catch (error) {
-        console.error('API Connection Failed:', error.message);
-        process.exit(1);
-    }
-}
 
 // Chat endpoint
 app.post('/api/chat', async (req, res) => {
     try {
         const { message } = req.body;
         const menuPrompt = createMenuPrompt();
+        const prompt = `${menuPrompt}\n\nCustomer Question: ${message}\nAssistant:`;
         
-        const chat = model.startChat({
-            history: [
-                {
-                    role: "user",
-                    parts: menuPrompt
-                }
-            ],
-            generationConfig: {
-                temperature: 0.7,
-                maxOutputTokens: 500,
-            },
-        });
-
-        const result = await chat.sendMessage(message);
-        const response = result.response.text();
-
-        // Check if the response is a navigation command
-        if (response.startsWith('NAVIGATE_TO_PRODUCT:')) {
-            const productId = response.split(':')[1];
-            res.json({ 
-                type: 'navigation',
-                productId: productId,
-                message: `Navigating to ${productId}`
-            });
-        } 
-        // Check if the response is a combined info and navigation command
-        else if (response.startsWith('INFO_AND_NAVIGATE:')) {
-            const [productId, info] = response.split(':').slice(1);
-            res.json({ 
-                type: 'info_and_navigate',
-                productId: productId,
-                message: `Navigating to ${productId}: ${info}`,
-                info: info
-            });
+        console.log('Sending prompt to Gemini...');
+        const result = await model.generateContent(prompt);
+        const text = (await result.response).text();
+        
+        console.log('Gemini Response:', text);
+        
+        // Check if the response contains a navigation command
+        if (text.startsWith('NAVIGATE_TO_PRODUCT:')) {
+            const productId = text.split(':')[1];
+            const product = productMap.get(productId);
+            if (product) {
+                // Send command to ESP32
+                sendToESP32(product.categoryNumber);
+                return res.json({
+                    response: `Navigating to ${product.name}`,
+                    productId: productId
+                });
+            }
+        } else if (text.startsWith('INFO_AND_NAVIGATE:')) {
+            const [_, productId, info] = text.split(':');
+            const product = productMap.get(productId);
+            if (product) {
+                // Send command to ESP32
+                sendToESP32(product.categoryNumber);
+                return res.json({
+                    response: info,
+                    productId: productId
+                });
+            }
         }
-        else {
-            res.json({ 
-                type: 'message',
-                message: response 
-            });
-        }
+        
+        res.json({ response: text });
     } catch (error) {
-        console.error('Error in chat endpoint:', error);
-        res.status(500).json({ error: 'Failed to process chat message' });
+        console.error('Chat Error:', error);
+        res.status(500).json({
+            error: error.message
+        });
     }
 });
 
