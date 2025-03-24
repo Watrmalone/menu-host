@@ -407,17 +407,4 @@ app.post('/api/tts', async (req, res) => {
             details: error.message
         });
     }
-});
-
-// Start server
-async function startServer() {
-    try {
-        await testApiConnection();
-        app.listen(PORT, () => console.log(`Server running on ${PORT}`));
-    } catch (error) {
-        console.error('Server Error:', error);
-        process.exit(1);
-    }
-}
-
-startServer(); 
+}); 
